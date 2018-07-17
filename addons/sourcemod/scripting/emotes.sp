@@ -1,11 +1,10 @@
 #pragma semicolon 1
 
 #define PLUGIN_AUTHOR "Rachnus"
-#define PLUGIN_VERSION "1.03"
+#define PLUGIN_VERSION "1.04"
 
 #include <sourcemod>
 #include <sdktools>
-#include <cstrike>
 #include <sdkhooks>
 #include <emotes>
 
@@ -31,7 +30,7 @@ Handle g_hOnEmoteSpawnSay;
 
 public Plugin myinfo = 
 {
-	name = "Emotes v1.03",
+	name = "Emotes v1.04",
 	author = PLUGIN_AUTHOR,
 	description = "Display emotes above your head",
 	version = PLUGIN_VERSION,
