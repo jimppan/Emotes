@@ -58,5 +58,6 @@ public void __pl_emotes_SetNTVOptional()
 {	
 	MarkNativeAsOptional("Emotes_SpawnEmote");
 	MarkNativeAsOptional("Emotes_GetEmoteMaterial");
+	MarkNativeAsOptional("Emotes_IsEmote");
 }
 #endif
