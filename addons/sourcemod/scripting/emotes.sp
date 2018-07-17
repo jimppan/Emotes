@@ -1,7 +1,7 @@
 #pragma semicolon 1
 
 #define PLUGIN_AUTHOR "Rachnus"
-#define PLUGIN_VERSION "1.0"
+#define PLUGIN_VERSION "1.01"
 
 #include <sourcemod>
 #include <sdktools>
@@ -26,7 +26,7 @@ Handle g_hOnEmoteSpawnSay;
 
 public Plugin myinfo = 
 {
-	name = "Emotes v1.0",
+	name = "Emotes v1.01",
 	author = PLUGIN_AUTHOR,
 	description = "Display emotes above your head",
 	version = PLUGIN_VERSION,
@@ -56,6 +56,8 @@ public void OnPluginStart()
 
 	AddCommandListener(Command_Say,	"say");
 	AddCommandListener(Command_Say,	"say_team");
+	
+	RegAdminCmd("sm_emote", Command_Emote, ADMFLAG_ROOT);
 }
 
 public APLRes AskPluginLoad2(Handle hMyself, bool bLate, char[] sError, int err_max)
@@ -98,6 +100,14 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	ClearClientEmotes(client);
+}
+
+public Action Command_Emote(int client, int args)
+{
+	char arg[65];
+	GetCmdArg(1, arg, sizeof(arg));
+	SpawnEmote(client, arg);
+	return Plugin_Handled;
 }
 
 public Action Command_Say(int client, const char[] command, int args)
