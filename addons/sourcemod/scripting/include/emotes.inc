@@ -3,21 +3,20 @@
 #endif
 #define _emotes_included
 
+#define EMOTES_PREFIX " \x09[\x04Emotes\x09]"
 #define EMOTES_MAX_EMOTES_PER_PLAYER 1
 #define EMOTES_KEY_LENGTH 65
 #define EMOTES_FRAMES_TO_MOVE_EMOTE 100
-#define EMOTE_TIME 3.0
 #define EMOTE_SNAP_OFFSET 8
-
 #define EMOTE_CONFIG "configs/emotes.cfg"
 
 /**
- * Returns wether or not the emote was found and created
+ * Returns INVALID_ENT_REFERENCE (-1) if emote was not created, else it returns entity index of the sprite entity
  * @param client index
  * @param emote key (name of the emote)
- * @return bool
+ * @return int
  */
-native bool Emotes_SpawnEmote(int client, const char[] key);
+native int Emotes_SpawnEmote(int client, const char[] key);
 
 /**
  * Gets the emote material path
@@ -27,6 +26,13 @@ native bool Emotes_SpawnEmote(int client, const char[] key);
  * @return void
  */
 native void Emotes_GetEmoteMaterial(const char[] key, char[] dest, int len);
+
+/**
+ * Returns true if the key is an emote
+ * @param emote key (name of the emote)
+ * @return bool
+ */
+native bool Emotes_IsEmote(const char[] key);
 
 /**
  * Called when a player spawns an emote by saying the key
@@ -48,7 +54,7 @@ public SharedPlugin __pl_emotes  =
 };
 
 #if !defined REQUIRE_PLUGIN
-public __pl_emotes_SetNTVOptional()
+public void __pl_emotes_SetNTVOptional()
 {	
 	MarkNativeAsOptional("Emotes_SpawnEmote");
 	MarkNativeAsOptional("Emotes_GetEmoteMaterial");
