@@ -1,7 +1,7 @@
 #pragma semicolon 1
 
 #define PLUGIN_AUTHOR "Rachnus"
-#define PLUGIN_VERSION "1.02"
+#define PLUGIN_VERSION "1.03"
 
 #include <sourcemod>
 #include <sdktools>
@@ -16,6 +16,8 @@ ConVar g_EmoteCooldown;
 ConVar g_EmoteTime;
 ConVar g_EmoteScale;
 
+ConVar g_RoundTime;
+
 StringMap g_hEmoteMap;
 KeyValues g_hEmoteConfig;
 int g_iEmotes[MAXPLAYERS + 1][EMOTES_MAX_EMOTES_PER_PLAYER];
@@ -29,7 +31,7 @@ Handle g_hOnEmoteSpawnSay;
 
 public Plugin myinfo = 
 {
-	name = "Emotes v1.02",
+	name = "Emotes v1.03",
 	author = PLUGIN_AUTHOR,
 	description = "Display emotes above your head",
 	version = PLUGIN_VERSION,
@@ -38,12 +40,16 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
+	LoadTranslations("common.phrases");
+	
 	HookEvent("player_death", Event_PlayerDeath);
 	
 	g_AnimateEmotes = 	CreateConVar("emotes_animate_emotes", "1", "Should the emotes animate or just snap (Setting this to 0 will increase server performance if needed)");
 	g_EmoteCooldown = 	CreateConVar("emotes_emote_cooldown", "3.0", "Time in seconds before you can use another emote");
 	g_EmoteTime =		CreateConVar("emotes_emote_time", "3.0", "Time in seconds an emote lasts");
 	g_EmoteScale =		CreateConVar("emotes_emote_scale", "0.1", "The scale of the emote (0.1 is default for some reason)");
+	
+	g_RoundTime = FindConVar("mp_roundtime");
 	
 	g_hOnEmoteSpawnSay = CreateGlobalForward("Emotes_OnEmoteSpawnSay", ET_Event, Param_Cell, Param_String);
 	
@@ -64,11 +70,13 @@ public void OnPluginStart()
 	AddCommandListener(Command_Say,	"say_team");
 	
 	RegAdminCmd("sm_emote", Command_Emote, ADMFLAG_ROOT);
+	RegAdminCmd("sm_clearemotes", Command_ClearEmotes, ADMFLAG_ROOT);
 }
 
 public APLRes AskPluginLoad2(Handle hMyself, bool bLate, char[] sError, int err_max)
 {
 	CreateNative("Emotes_SpawnEmote", Native_SpawnEmote);
+	CreateNative("Emotes_ClearEmotes", Native_ClearEmotes);
 	CreateNative("Emotes_GetEmoteMaterial", Native_GetEmoteMaterial);
 	CreateNative("Emotes_IsEmote", Native_IsEmote);
 
@@ -90,7 +98,16 @@ public int Native_SpawnEmote(Handle plugin, int numParams)
 	char key[64];
 	GetNativeString(2, key, sizeof(key));
 	
-	return SpawnEmote(client, key);
+	return SpawnEmote(client, key, GetNativeCell(3), GetNativeCell(4));
+}
+
+public int Native_ClearEmotes(Handle plugin, int numParams)
+{
+	int client = GetNativeCell(1);
+	if(!IsValidClient(client))
+		return;
+
+	ClearClientEmotes(client);
 }
 
 public int Native_GetEmoteMaterial(Handle plugin, int numParams)
@@ -119,19 +136,83 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 
 public Action Command_Emote(int client, int args)
 {
+	if(args != 4)
+	{
+		ReplyToCommand(client, "%s Usage: \x04sm_emote <client> <emote> <scale> <duration>", EMOTES_PREFIX);
+		return Plugin_Handled;
+	}
+	
+	char arg[65], arg2[65], arg3[65], arg4[65];
+	GetCmdArg(1, arg, sizeof(arg));
+	GetCmdArg(2, arg2, sizeof(arg2));
+	GetCmdArg(3, arg3, sizeof(arg3));
+	GetCmdArg(4, arg4, sizeof(arg4));
+	
+	if(!IsEmote(arg2))
+	{
+		ReplyToCommand(client, "%s \x04%s\x09 is not an emote!", EMOTES_PREFIX, arg2);
+		return Plugin_Handled;
+	}
+	
+	char target_name[MAX_TARGET_LENGTH];
+	int target_list[MAXPLAYERS + 1];
+	int target_count;
+	
+	bool tn_is_ml;
+
+	if ((target_count = ProcessTargetString(
+			arg,
+			client,
+			target_list,
+			MAXPLAYERS + 1,
+			COMMAND_FILTER_CONNECTED,
+			target_name,
+			sizeof(target_name),
+			tn_is_ml)) <= 0)
+	{
+		ReplyToTargetError(client, target_count);
+		return Plugin_Handled;
+	}
+	
+	for (int i = 0; i < target_count; i++)
+		SpawnEmote(target_list[i], arg2, StringToFloat(arg3), StringToFloat(arg4));
+
+	return Plugin_Handled;
+}
+
+public Action Command_ClearEmotes(int client, int args)
+{
 	if(args != 1)
 	{
-		ReplyToCommand(client, "%s Usage: \x04sm_emote <emote>", EMOTES_PREFIX);
+		ReplyToCommand(client, "%s Usage: \x04sm_clearemotes <client>", EMOTES_PREFIX);
 		return Plugin_Handled;
 	}
 	
 	char arg[65];
 	GetCmdArg(1, arg, sizeof(arg));
-	if(SpawnEmote(client, arg) == INVALID_ENT_REFERENCE)
+	
+	char target_name[MAX_TARGET_LENGTH];
+	int target_list[MAXPLAYERS + 1];
+	int target_count;
+	
+	bool tn_is_ml;
+
+	if ((target_count = ProcessTargetString(
+			arg,
+			client,
+			target_list,
+			MAXPLAYERS + 1,
+			COMMAND_FILTER_CONNECTED,
+			target_name,
+			sizeof(target_name),
+			tn_is_ml)) <= 0)
 	{
-		ReplyToCommand(client, "%s \x04%s\x09 is not an emote!", EMOTES_PREFIX, arg);
+		ReplyToTargetError(client, target_count);
 		return Plugin_Handled;
 	}
+	
+	for (int i = 0; i < target_count; i++)
+		ClearClientEmotes(target_list[i]);
 	return Plugin_Handled;
 }
 
@@ -172,7 +253,7 @@ public Action Command_Say(int client, const char[] command, int args)
 			if(time > 0.0)
 				return IsEmote(message) ? Plugin_Handled:Plugin_Continue;
 			
-			return SpawnEmote(client, message)!=INVALID_ENT_REFERENCE?Plugin_Handled:Plugin_Continue;
+			return SpawnEmote(client, message, g_EmoteScale.FloatValue, g_EmoteTime.FloatValue)!=INVALID_ENT_REFERENCE?Plugin_Handled:Plugin_Continue;
 		}
 	}
 	return Plugin_Continue;
@@ -234,7 +315,7 @@ public bool IsEmote(const char[] key)
 	return true;
 }
 
-public int SpawnEmote(int client, const char[] key)
+public int SpawnEmote(int client, const char[] key, float scale, float duration)
 {
 	char material[PLATFORM_MAX_PATH];
 	g_hEmoteMap.GetString(key, material, PLATFORM_MAX_PATH);
@@ -244,9 +325,10 @@ public int SpawnEmote(int client, const char[] key)
 	int sprite = CreateEntityByName("env_sprite_oriented");
 	float pos[3];
 	GetClientAbsOrigin(client, pos);
-	pos[2] += 80.0 + ((g_EmoteScale.FloatValue * 5) * (g_EmoteScale.FloatValue * 5));
+	if(IsPlayerAlive(client))
+		pos[2] += 80.0 + ((g_EmoteScale.FloatValue * 5) * (g_EmoteScale.FloatValue * 5));
 	DispatchKeyValue(sprite, "spawnflags", "1");
-	DispatchKeyValueFloat(sprite, "scale", g_EmoteScale.FloatValue);
+	DispatchKeyValueFloat(sprite, "scale", scale);
 	DispatchKeyValue(sprite, "model", material); 
 	DispatchSpawn(sprite);
 	TeleportEntity(sprite, pos, NULL_VECTOR, NULL_VECTOR);
@@ -255,7 +337,12 @@ public int SpawnEmote(int client, const char[] key)
 	
 	ShiftEmoteQueue(client);
 	g_iEmotes[client][0] = EntIndexToEntRef(sprite);
-	g_fTimeToKillEmote[client][0] = GetGameTime() + g_EmoteTime.FloatValue;
+	
+	// If duration is 0, emote will last until round end
+	if(duration <= 0.0)
+		duration = g_RoundTime.FloatValue * 60.0;
+		
+	g_fTimeToKillEmote[client][0] = GetGameTime() + duration;
 	
 	if(g_AnimateEmotes.BoolValue)
 		g_iFramesToMove[client][0] = EMOTES_FRAMES_TO_MOVE_EMOTE;
@@ -268,7 +355,7 @@ public void OnGameFrame()
 {
 	for (int client = 1; client <= MaxClients; client++)
 	{
-		if(IsClientInGame(client) && IsPlayerAlive(client))
+		if(IsClientInGame(client))
 		{
 			for (int i = 0; i < EMOTES_MAX_EMOTES_PER_PLAYER; i++)
 			{

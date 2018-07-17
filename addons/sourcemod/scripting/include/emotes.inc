@@ -14,9 +14,18 @@
  * Returns INVALID_ENT_REFERENCE (-1) if emote was not created, else it returns entity index of the sprite entity
  * @param client index
  * @param emote key (name of the emote)
+ * @param scale of the sprite
+ * @param duration of the emote (if duration is equal or less than 0, duration will last as long as the round time)
  * @return int
  */
-native int Emotes_SpawnEmote(int client, const char[] key);
+native int Emotes_SpawnEmote(int client, const char[] key, float scale, float duration);
+
+/**
+ * Clears any emotes spawned by the client
+ * @param client index
+ * @return void
+ */
+native void Emotes_ClearEmotes(int client);
 
 /**
  * Gets the emote material path
@@ -57,6 +66,7 @@ public SharedPlugin __pl_emotes  =
 public void __pl_emotes_SetNTVOptional()
 {	
 	MarkNativeAsOptional("Emotes_SpawnEmote");
+	MarkNativeAsOptional("Emotes_ClearEmotes");
 	MarkNativeAsOptional("Emotes_GetEmoteMaterial");
 	MarkNativeAsOptional("Emotes_IsEmote");
 }
