@@ -1,12 +1,15 @@
 #pragma semicolon 1
 
 #define PLUGIN_AUTHOR "Rachnus"
-#define PLUGIN_VERSION "1.04"
+#define PLUGIN_VERSION "1.05"
 
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
 #include <emotes>
+#undef REQUIRE_PLUGIN
+#include <scp>
+#include <chat-processor>
 
 #pragma newdecls required
 
@@ -28,9 +31,17 @@ int g_iFramesToMove[MAXPLAYERS + 1][EMOTES_MAX_EMOTES_PER_PLAYER];
 // Handles
 Handle g_hOnEmoteSpawnSay;
 
+//Other
+#if defined _scp_included
+bool g_bScp;
+#endif
+#if defined _chat_processor_included
+bool g_bCp;
+#endif
+
 public Plugin myinfo = 
 {
-	name = "Emotes v1.04",
+	name = "Emotes v1.05",
 	author = PLUGIN_AUTHOR,
 	description = "Display emotes above your head",
 	version = PLUGIN_VERSION,
@@ -86,6 +97,40 @@ public APLRes AskPluginLoad2(Handle hMyself, bool bLate, char[] sError, int err_
 public void OnPluginEnd()
 {
 	ClearAllEmotes();
+}
+
+public void OnAllPluginsLoaded()
+{
+#if defined _scp_included
+	g_bScp = LibraryExists("scp");
+#endif
+#if defined _chat_processor_included
+	g_bCp = LibraryExists("chat-processor");
+#endif
+}
+
+public void OnLibraryAdded(const char[] name)
+{
+#if defined _scp_included
+	if(StrEqual(name, "scp"))
+		g_bScp = true;
+#endif
+#if defined _chat_processor_included
+	if(StrEqual(name, "chat-processor"))
+		g_bCp = true;
+#endif
+}
+
+public void OnLibraryRemoved(const char[] name)
+{
+#if defined _scp_included
+	if(StrEqual(name, "scp"))
+		g_bScp = false;
+#endif
+#if defined _chat_processor_included
+	if(StrEqual(name, "chat-processor"))
+		g_bCp = false;
+#endif
 }
 
 public int Native_SpawnEmote(Handle plugin, int numParams)
@@ -215,8 +260,116 @@ public Action Command_ClearEmotes(int client, int args)
 	return Plugin_Handled;
 }
 
+#if defined _chat_processor_included
+public Action CP_OnChatMessage(int& client, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
+{
+	if(!IsValidClient(client))
+		return Plugin_Continue;
+		
+	if(!IsPlayerAlive(client))
+		return Plugin_Continue;
+
+	StripQuotes(message);
+	
+	Action result = Plugin_Continue;
+	Call_StartForward(g_hOnEmoteSpawnSay);
+	Call_PushCell(client);
+	Call_PushStringEx(message, MAXLENGTH_MESSAGE, SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
+	Call_Finish(result);
+	
+	switch(result)
+	{
+		case Plugin_Handled:
+		{
+			return Plugin_Continue;
+		}
+		case Plugin_Stop:
+		{
+			return Plugin_Continue;
+		}
+		default:
+		{
+			float time = 0.0;
+			if(g_fTimeUsedEmote[client] != 0.0)
+			{
+				time = g_EmoteCooldown.FloatValue;
+				time -= GetGameTime() - g_fTimeUsedEmote[client];
+			}
+			
+			if(time > 0.0)
+				return IsEmote(message) ? Plugin_Stop:Plugin_Continue;
+			
+			return SpawnEmote(client, message, g_EmoteScale.FloatValue, g_EmoteTime.FloatValue)!=INVALID_ENT_REFERENCE?Plugin_Stop:Plugin_Continue;
+		}
+	}
+	return Plugin_Continue;
+}
+#endif
+
+// Credits: Squallkins
+// https://forums.alliedmods.net/showpost.php?p=2604710&postcount=18
+#if defined _scp_included
+public Action OnChatMessage(int &client, Handle hRecipients, char[] sName, char[] message)
+{
+	if(!IsValidClient(client))
+		return Plugin_Continue;
+		
+	if(!IsPlayerAlive(client))
+		return Plugin_Continue;
+
+	StripQuotes(message);
+	
+	Action result = Plugin_Continue;
+	Call_StartForward(g_hOnEmoteSpawnSay);
+	Call_PushCell(client);
+	Call_PushStringEx(message, MAXLENGTH_MESSAGE, SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
+	Call_Finish(result);
+	
+	switch(result)
+	{
+		case Plugin_Handled:
+		{
+			return Plugin_Continue;
+		}
+		case Plugin_Stop:
+		{
+			return Plugin_Continue;
+		}
+		default:
+		{
+			float time = 0.0;
+			if(g_fTimeUsedEmote[client] != 0.0)
+			{
+				time = g_EmoteCooldown.FloatValue;
+				time -= GetGameTime() - g_fTimeUsedEmote[client];
+			}
+			
+			if(time > 0.0)
+				return IsEmote(message) ? Plugin_Handled:Plugin_Continue;
+			
+			return SpawnEmote(client, message, g_EmoteScale.FloatValue, g_EmoteTime.FloatValue)!=INVALID_ENT_REFERENCE?Plugin_Handled:Plugin_Continue;
+		}
+	}
+	return Plugin_Continue;
+}
+#endif
+
 public Action Command_Say(int client, const char[] command, int args)
 {
+#if defined _scp_included
+	if(g_bScp)
+		return Plugin_Continue;
+#endif
+#if defined _chat_processor_included
+	if(g_bCp)
+	{
+		PrintToServer("CP SAY");
+		return Plugin_Continue;
+	}
+#endif
+	if(!IsValidClient(client))
+		return Plugin_Continue;
+		
 	if(!IsPlayerAlive(client))
 		return Plugin_Continue;
 		
