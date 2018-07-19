@@ -345,9 +345,9 @@ public Action OnChatMessage(int &client, Handle hRecipients, char[] sName, char[
 			}
 			
 			if(time > 0.0)
-				return IsEmote(message) ? Plugin_Handled:Plugin_Continue;
+				return IsEmote(message) ? Plugin_Stop:Plugin_Continue;
 			
-			return SpawnEmote(client, message, g_EmoteScale.FloatValue, g_EmoteTime.FloatValue)!=INVALID_ENT_REFERENCE?Plugin_Handled:Plugin_Continue;
+			return SpawnEmote(client, message, g_EmoteScale.FloatValue, g_EmoteTime.FloatValue)!=INVALID_ENT_REFERENCE?Plugin_Stop:Plugin_Continue;
 		}
 	}
 	return Plugin_Continue;
