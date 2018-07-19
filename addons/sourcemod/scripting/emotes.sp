@@ -362,10 +362,7 @@ public Action Command_Say(int client, const char[] command, int args)
 #endif
 #if defined _chat_processor_included
 	if(g_bCp)
-	{
-		PrintToServer("CP SAY");
 		return Plugin_Continue;
-	}
 #endif
 	if(!IsValidClient(client))
 		return Plugin_Continue;
