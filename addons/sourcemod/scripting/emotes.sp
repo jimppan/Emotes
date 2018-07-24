@@ -1,7 +1,7 @@
 #pragma semicolon 1
 
 #define PLUGIN_AUTHOR "Rachnus"
-#define PLUGIN_VERSION "1.06"
+#define PLUGIN_VERSION "1.07"
 
 #include <sourcemod>
 #include <sdktools>
@@ -17,11 +17,16 @@ ConVar g_EmoteScale;
 
 ConVar g_RoundTime;
 
+EngineVersion g_Game;
 StringMap g_hEmoteMap;
 KeyValues g_hEmoteConfig;
 int g_iEmotes[MAXPLAYERS + 1][EMOTES_MAX_EMOTES_PER_PLAYER];
 float g_fTimeToKillEmote[MAXPLAYERS + 1][EMOTES_MAX_EMOTES_PER_PLAYER];
 float g_fTimeUsedEmote[MAXPLAYERS + 1] =  { 0.0, ... };
+
+// TF2 stuff
+int g_iLinks[MAXPLAYERS + 1][EMOTES_MAX_EMOTES_PER_PLAYER];
+
 // Emote animation
 int g_iFramesToMove[MAXPLAYERS + 1][EMOTES_MAX_EMOTES_PER_PLAYER]; 
 
@@ -30,7 +35,7 @@ Handle g_hOnEmoteSpawnSay;
 
 public Plugin myinfo = 
 {
-	name = "Emotes v1.06",
+	name = "Emotes v1.07",
 	author = PLUGIN_AUTHOR,
 	description = "Display emotes above your head",
 	version = PLUGIN_VERSION,
@@ -39,6 +44,7 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
+	g_Game = GetEngineVersion();
 	LoadTranslations("common.phrases");
 	
 	HookEvent("player_death", Event_PlayerDeath);
@@ -323,8 +329,19 @@ public int SpawnEmote(int client, const char[] key, float scale, float duration)
 	int sprite = CreateEntityByName("env_sprite_oriented");
 	float pos[3];
 	GetClientAbsOrigin(client, pos);
+	
+	if(g_Game == Engine_TF2)
+		GetClientEyePosition(client, pos);
+	else
+		GetClientAbsOrigin(client, pos);
+		
 	if(IsPlayerAlive(client))
-		pos[2] += 80.0 + ((g_EmoteScale.FloatValue * 5) * (g_EmoteScale.FloatValue * 5));
+	{
+		if(g_Game == Engine_TF2)
+			pos[2] += 20.0 + ((g_EmoteScale.FloatValue * 5) * (g_EmoteScale.FloatValue * 5));
+		else
+			pos[2] += 80.0 + ((g_EmoteScale.FloatValue * 5) * (g_EmoteScale.FloatValue * 5));
+	}
 	DispatchKeyValue(sprite, "spawnflags", "1");
 	DispatchKeyValueFloat(sprite, "scale", scale);
 	DispatchKeyValue(sprite, "model", material); 
@@ -335,6 +352,17 @@ public int SpawnEmote(int client, const char[] key, float scale, float duration)
 	
 	ShiftEmoteQueue(client);
 	g_iEmotes[client][0] = EntIndexToEntRef(sprite);
+	
+	//TF2 stuff
+	if(g_Game == Engine_TF2)
+	{
+		int link = CreateLink(client);
+		g_iLinks[client][0] = EntIndexToEntRef(link);
+		SetVariantString("!activator");
+		AcceptEntityInput(sprite, "SetParent", link); 
+		
+		SetEntPropEnt(sprite, Prop_Send, "m_hEffectEntity", link);
+	}
 	
 	// If duration is 0, emote will last until round end
 	if(duration <= 0.0)
@@ -347,6 +375,25 @@ public int SpawnEmote(int client, const char[] key, float scale, float duration)
 	
 	g_fTimeUsedEmote[client] = GetGameTime();
 	return sprite;
+}
+
+stock int CreateLink(int client)
+{
+	int link = CreateEntityByName("tf_taunt_prop");
+	
+	DispatchKeyValue(link, "targetname", "EmoteLink");
+	DispatchSpawn(link); 
+	
+	SetEntityModel(link, MODEL_EMPTY);
+	
+	SetEntProp(link, Prop_Send, "m_fEffects", 16|64);
+	
+	SetVariantString("!activator"); 
+	AcceptEntityInput(link, "SetParent", client); 
+	
+	SetVariantString("flag");
+	AcceptEntityInput(link, "SetParentAttachment", client);
+	return link;
 }
 
 public void OnGameFrame()
@@ -364,10 +411,14 @@ public void OnGameFrame()
 					{
 						if(g_iFramesToMove[client][i]-- > 0)
 						{
-							float pos[3];
+							float pos[3], clientPos[3];
+							GetClientAbsOrigin(client, clientPos);
 							GetEntPropVector(ent, Prop_Data, "m_vecOrigin", pos);
 							float temp = float(g_iFramesToMove[client][i]) / 200.0;
-							pos[2] += temp * temp;
+							if(g_Game == Engine_TF2)
+								pos[1] -= temp * temp;
+							else
+								pos[2] += temp * temp;
 							TeleportEntity(ent, pos, NULL_VECTOR, NULL_VECTOR);
 						}
 					}
@@ -386,9 +437,18 @@ public void ShiftEmoteQueue(int client)
 		AcceptEntityInput(ent, "Kill");
 	g_iEmotes[client][EMOTES_MAX_EMOTES_PER_PLAYER - 1] = INVALID_ENT_REFERENCE;
 	
+	if(g_Game == Engine_TF2)
+	{
+		ent = EntRefToEntIndex(g_iLinks[client][EMOTES_MAX_EMOTES_PER_PLAYER - 1]);
+		if(ent != INVALID_ENT_REFERENCE && IsValidEntity(ent))
+			AcceptEntityInput(ent, "Kill");
+		g_iLinks[client][EMOTES_MAX_EMOTES_PER_PLAYER - 1] = INVALID_ENT_REFERENCE;
+	}
+	
 	for (int i = EMOTES_MAX_EMOTES_PER_PLAYER - 2; i >= 0; i--)
 	{
 		g_iEmotes[client][i+1] = g_iEmotes[client][i];
+		g_iLinks[client][i+1] = g_iLinks[client][i];
 		g_fTimeToKillEmote[client][i+1] = g_fTimeToKillEmote[client][i];
 		if(g_AnimateEmotes.BoolValue)
 		{
@@ -413,6 +473,7 @@ public void InitializeClientEmotesArray(int client)
 	for (int i = 0; i < EMOTES_MAX_EMOTES_PER_PLAYER; i++)
 	{
 		g_iEmotes[client][i] = INVALID_ENT_REFERENCE;
+		g_iLinks[client][i] = INVALID_ENT_REFERENCE;
 		g_iFramesToMove[client][i] = 0;
 		g_fTimeToKillEmote[client][i] = 0.0;
 	}
@@ -426,6 +487,14 @@ public void ClearClientEmote(int client, int emoteIndex)
 	g_iEmotes[client][emoteIndex] = INVALID_ENT_REFERENCE;
 	g_iFramesToMove[client][emoteIndex] = 0;
 	g_fTimeToKillEmote[client][emoteIndex] = 0.0;
+	
+	if(g_Game == Engine_TF2)
+	{
+		ent = EntRefToEntIndex(g_iLinks[client][emoteIndex]);
+		if(ent != INVALID_ENT_REFERENCE && IsValidEntity(ent))
+			AcceptEntityInput(ent, "Kill");
+		g_iLinks[client][emoteIndex] = INVALID_ENT_REFERENCE;
+	}
 }
 
 public void ClearClientEmotes(int client)
@@ -448,5 +517,7 @@ public void OnClientDisconnect(int client)
 
 public void OnMapStart()
 {
+	if(g_Game == Engine_TF2)
+		PrecacheModel(MODEL_EMPTY);
 	PrecacheEmotes();
 }

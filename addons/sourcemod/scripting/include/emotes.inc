@@ -10,6 +10,9 @@
 #define EMOTE_SNAP_OFFSET 8
 #define EMOTE_CONFIG "configs/emotes.cfg"
 
+// TF2 stuff
+#define MODEL_EMPTY "models/empty.mdl"
+
 /**
  * Returns INVALID_ENT_REFERENCE (-1) if emote was not created, else it returns entity index of the sprite entity
  * @param client index
