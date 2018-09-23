@@ -563,7 +563,7 @@ public int Menu_EmoteList(Menu menu, MenuAction action, int client, int param)
 	{
 		char sEmote[EMOTES_KEY_LENGTH];
 		menu.GetItem(param, sEmote, sizeof(sEmote));
-		FakeClientCommand(client, "say %s", sEmote);
+		SpawnEmote(client, sEmote, g_EmoteScale.FloatValue, g_EmoteTime.FloatValue);
 	}
 	else if (action == MenuAction_End)
 		delete menu;
