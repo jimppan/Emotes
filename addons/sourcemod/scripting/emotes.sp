@@ -545,6 +545,8 @@ public Action Command_Emotes(int client, int args)
 		menu.AddItem(sEmote, sEmote);
 	}
 
+	delete smSnapshot;
+
 	menu.Display(client, 30);
 
 	return Plugin_Continue;
