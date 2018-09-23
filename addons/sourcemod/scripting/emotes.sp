@@ -33,6 +33,9 @@ int g_iFramesToMove[MAXPLAYERS + 1][EMOTES_MAX_EMOTES_PER_PLAYER];
 // Handles
 Handle g_hOnEmoteSpawnSay;
 
+// Emotelist
+ArrayList g_aEmotes = null;
+
 public Plugin myinfo = 
 {
 	name = "Emotes v1.07",
@@ -72,6 +75,7 @@ public void OnPluginStart()
 	}
 
 	RegAdminCmd("sm_emote", Command_Emote, ADMFLAG_ROOT);
+	RegConsoleCmd("sm_emotes", Command_Emotes);
 	RegAdminCmd("sm_clearemotes", Command_ClearEmotes, ADMFLAG_ROOT);
 }
 
@@ -225,9 +229,12 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 		
 	if(!IsPlayerAlive(client))
 		return Plugin_Continue;
-	
+
 	char message[65];
 	Format(message, sizeof(message), sArgs);
+
+	if (StrEqual(message, "!emotes"))
+		return Plugin_Stop;
 	
 	Action result = Plugin_Continue;
 	Call_StartForward(g_hOnEmoteSpawnSay);
@@ -265,6 +272,11 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 
 public void LoadEmotes()
 {
+	if (g_aEmotes != null)
+		delete g_aEmotes;
+
+	g_aEmotes = new ArrayList(EMOTES_KEY_LENGTH);
+
 	g_hEmoteConfig.Rewind();
 	g_hEmoteConfig.GotoFirstSubKey();
 	char key[EMOTES_KEY_LENGTH];
@@ -273,6 +285,7 @@ public void LoadEmotes()
 	do
 	{
 		g_hEmoteConfig.GetString("key", key, EMOTES_KEY_LENGTH);
+		g_aEmotes.PushString(key);
 		g_hEmoteConfig.GetString("material", materialPath, PLATFORM_MAX_PATH);
 		
 		Format(matVTF, sizeof(matVTF), "%s.vtf", materialPath);
@@ -520,4 +533,38 @@ public void OnMapStart()
 	if(g_Game == Engine_TF2)
 		PrecacheModel(MODEL_EMPTY);
 	PrecacheEmotes();
+}
+
+public Action Command_Emotes(int client, int args)
+{
+	if(!IsValidClient(client))
+		return Plugin_Continue;
+		
+	if(!IsPlayerAlive(client))
+		return Plugin_Continue;
+	
+	Menu menu = new Menu(Menu_EmoteList);
+	menu.SetTitle("Emotes");
+	for (int i = 0; i < g_aEmotes.Length; i++)
+	{
+		char sEmote[EMOTES_KEY_LENGTH];
+		g_aEmotes.GetString(i, sEmote, sizeof(sEmote));
+		menu.AddItem(sEmote, sEmote);
+	}
+
+	menu.Display(client, 30);
+
+	return Plugin_Continue;
+}
+
+public int Menu_EmoteList(Menu menu, MenuAction action, int client, int param)
+{
+	if (action == MenuAction_Select)
+	{
+		char sEmote[EMOTES_KEY_LENGTH];
+		menu.GetItem(param, sEmote, sizeof(sEmote));
+		FakeClientCommand(client, "say %s", sEmote);
+	}
+	else if (action == MenuAction_End)
+		delete menu;
 }
