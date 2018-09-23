@@ -33,9 +33,6 @@ int g_iFramesToMove[MAXPLAYERS + 1][EMOTES_MAX_EMOTES_PER_PLAYER];
 // Handles
 Handle g_hOnEmoteSpawnSay;
 
-// Emotelist
-ArrayList g_aEmotes = null;
-
 public Plugin myinfo = 
 {
 	name = "Emotes v1.07",
@@ -272,11 +269,6 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 
 public void LoadEmotes()
 {
-	if (g_aEmotes != null)
-		delete g_aEmotes;
-
-	g_aEmotes = new ArrayList(EMOTES_KEY_LENGTH);
-
 	g_hEmoteConfig.Rewind();
 	g_hEmoteConfig.GotoFirstSubKey();
 	char key[EMOTES_KEY_LENGTH];
@@ -285,7 +277,6 @@ public void LoadEmotes()
 	do
 	{
 		g_hEmoteConfig.GetString("key", key, EMOTES_KEY_LENGTH);
-		g_aEmotes.PushString(key);
 		g_hEmoteConfig.GetString("material", materialPath, PLATFORM_MAX_PATH);
 		
 		Format(matVTF, sizeof(matVTF), "%s.vtf", materialPath);
@@ -543,12 +534,14 @@ public Action Command_Emotes(int client, int args)
 	if(!IsPlayerAlive(client))
 		return Plugin_Continue;
 	
+	StringMapSnapshot smSnapshot = g_hEmoteMap.Snapshot();
+
 	Menu menu = new Menu(Menu_EmoteList);
 	menu.SetTitle("Emotes");
-	for (int i = 0; i < g_aEmotes.Length; i++)
+	for (int i = 0; i < smSnapshot.Length; i++)
 	{
 		char sEmote[EMOTES_KEY_LENGTH];
-		g_aEmotes.GetString(i, sEmote, sizeof(sEmote));
+		smSnapshot.GetKey(i, sEmote, sizeof(sEmote));
 		menu.AddItem(sEmote, sEmote);
 	}
 
